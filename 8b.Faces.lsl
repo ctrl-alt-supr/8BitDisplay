@@ -11,5 +11,5 @@ integer ALPHA_FACE_4=7;
 //Width in prims of the ground
 integer SURFACE_SIZE=4;
 //Enums for the layers
-integer ENUM_LAYER_GROUND=0;
-integer ENUM_LAYER_ALPHA=1;
+integer ENM_LAYER_GROUND=0;
+integer ENM_LAYER_ALPHA=1;

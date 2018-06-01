@@ -9,9 +9,9 @@ vector ground_size=<10,10,0>;
 //Size of the alpha grid
 vector alpha_size=<10,10,0>;
 //Name of the ground tile texture
-string ground_tileset="base_ground";
+string ground_tiles="base_ground";
 //Name of the alpha tile texture
-string alpha_tileset="base_alpha";
+string alpha_tiles="base_alpha";
 //Contains the link ids of the prims used for the display
 list map_linkids=[
     -1,-1,-1,-1,
@@ -89,6 +89,15 @@ scan_linkset(){
             map_linkids = llListReplaceList(map_linkids, [i], posenlista, posenlista);            
         }   
     }
+}
+ integer get_pasability_for(integer listpos, integer layer){
+    list la_lista_a_usar=[];
+    if(layer==ENM_LAYER_GROUND){
+        la_lista_a_usar=ground_tiles_passability;
+    }else if(layer==ENM_LAYER_ALPHA){
+        la_lista_a_usar=alpha_tiles_passability;
+    }
+    return llList2Integer(la_lista_a_usar, listpos);
 }
 //Given a link number, face and tile to paint, returns the list needed to set the appropiate params through llSetLinkPrimitiveParamsFast
 list get_params_for(string tilesetname, integer linkid, integer face, integer tile_number, integer tileset_cols, integer tileset_rows){
@@ -181,8 +190,8 @@ paint_ground(){
     list toSet=[];
     for(;i<llGetListLength(ground_map);i++){
         integer ctile=llList2Integer( ground_map,i); 
-        baked_passability+=get_pasability_for(ctile,ENUM_LAYER_GROUND);
-        list link_and_face=get_linknum_and_face(i,ENUM_LAYER_GROUND);
+        baked_passability+=get_pasability_for(ctile,ENM_LAYER_GROUND);
+        list link_and_face=get_linknum_and_face(i,ENM_LAYER_GROUND);
         toSet+=get_params_for(ground_tiles, llList2Integer(link_and_face,0),llList2Integer(link_and_face,1),ctile, (integer)(ground_size.x), (integer)(ground_size.y));
     }
     llSetLinkPrimitiveParamsFast(2,toSet);
@@ -193,8 +202,8 @@ paint_alpha(){
     list toSet=[];
     for(;i<llGetListLength(alpha_map);i++){
         integer ctile=llList2Integer( alpha_map,i); 
-        baked_passability=llListReplaceList(baked_passability, [llList2Integer(baked_passability, i) && get_pasability_for(ctile,ENUM_LAYER_ALPHA)], i, i);
-        list link_and_face=get_linknum_and_face(i,ENUM_LAYER_ALPHA);
+        baked_passability=llListReplaceList(baked_passability, [llList2Integer(baked_passability, i) && get_pasability_for(ctile,ENM_LAYER_ALPHA)], i, i);
+        list link_and_face=get_linknum_and_face(i,ENM_LAYER_ALPHA);
         toSet+=get_params_for(alpha_tiles, llList2Integer(link_and_face,0),llList2Integer(link_and_face,1),ctile, (integer)(alpha_size.x), (integer)(alpha_size.y));
     }
     llSetLinkPrimitiveParamsFast(2,toSet);
@@ -204,7 +213,7 @@ clear_screen(vector elColor){
     integer i=0;
     list toSet=[];
     for(;i<llGetListLength(ground_map);i++){
-        list link_and_face=get_linknum_and_face(i,ENUM_LAYER_ALPHA);
+        list link_and_face=get_linknum_and_face(i,ENM_LAYER_ALPHA);
         if(elColor==ZERO_VECTOR){
             toSet+=[PRIM_LINK_TARGET, llList2Integer(link_and_face,0), PRIM_TEXTURE, llList2Integer(link_and_face,1), TEXTURE_TRANSPARENT, <1,1,0>, <0,0,0>, 0];
         }else{
@@ -213,7 +222,7 @@ clear_screen(vector elColor){
     }
     i=0;
     for(;i<llGetListLength(ground_map);i++){
-        list link_and_face=get_linknum_and_face(i,ENUM_LAYER_GROUND);
+        list link_and_face=get_linknum_and_face(i,ENM_LAYER_GROUND);
         if(elColor==ZERO_VECTOR){
             toSet+=[PRIM_LINK_TARGET, llList2Integer(link_and_face,0), PRIM_TEXTURE, llList2Integer(link_and_face,1), TEXTURE_TRANSPARENT, <1,1,0>, <0,0,0>, 0];
         }else{
