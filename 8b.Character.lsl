@@ -134,25 +134,34 @@ paint_character(){
     losParametros+=get_params_for(char_texture, llList2Integer(char_linkids,0),0,get_texture_tile_number(current_direction,0,FALSE));
     losParametros+=get_params_for(char_texture, llList2Integer(char_linkids,1),0,get_texture_tile_number(current_direction,0,TRUE));
     llSetLinkPrimitiveParamsFast(2,losParametros);
+    character_shown=TRUE;
 }
 clear_character(){
     list losParametros=[];
     losParametros+=[PRIM_LINK_TARGET, llList2Integer(char_linkids,0), PRIM_TEXTURE, 0, TEXTURE_TRANSPARENT, <1,1,0>, <0,0,0>, 0];
     losParametros+=[PRIM_LINK_TARGET, llList2Integer(char_linkids,1), PRIM_TEXTURE, 0, TEXTURE_TRANSPARENT, <1,1,0>, <0,0,0>, 0];
     llSetLinkPrimitiveParamsFast(2,losParametros);
+    character_shown=FALSE;
 }
 move_to(vector pos){
     list losParametros=[];
     losParametros+=[PRIM_LINK_TARGET, llList2Integer(char_linkids,0), PRIM_POS_LOCAL,ZERO_VECTOR+<cell_size.y/2,cell_size.y/2,0>+cell_id_2_local_pos((integer)pos.x-1,(integer)pos.y-1)];
-    losParametros+=get_params_for(char_texture, llList2Integer(char_linkids,0),0,get_texture_tile_number(current_direction,animation_index,FALSE));
+    if(character_shown){
+        losParametros+=get_params_for(char_texture, llList2Integer(char_linkids,0),0,get_texture_tile_number(current_direction,animation_index,FALSE));
+    }else{
+        losParametros+=[PRIM_TEXTURE, 0, TEXTURE_TRANSPARENT, <1,1,0>, <0,0,0>, 0];
+    }
     losParametros+=[PRIM_LINK_TARGET, llList2Integer(char_linkids,1), PRIM_POS_LOCAL,ZERO_VECTOR+<cell_size.y/2,cell_size.y/2,0>+cell_id_2_local_pos((integer)pos.x-1,(integer)pos.y-2)];
     //llOwnerSay("pos "+(string)((integer)pos.y));
-    if((integer)pos.y==1){
-        losParametros+=[PRIM_TEXTURE, 0, TEXTURE_TRANSPARENT, <1,1,0>, <0,0,0>, 0];
+    if(character_shown){
+        if((integer)pos.y==1){
+            losParametros+=[PRIM_TEXTURE, 0, TEXTURE_TRANSPARENT, <1,1,0>, <0,0,0>, 0];
+        }else{
+            losParametros+=get_params_for(char_texture, llList2Integer(char_linkids,1),0,get_texture_tile_number(current_direction,animation_index,TRUE));
+        }
     }else{
-        losParametros+=get_params_for(char_texture, llList2Integer(char_linkids,1),0,get_texture_tile_number(current_direction,animation_index,TRUE));
+        losParametros+=[PRIM_TEXTURE, 0, TEXTURE_TRANSPARENT, <1,1,0>, <0,0,0>, 0];
     }
-    
     llSetLinkPrimitiveParamsFast(2,losParametros);
     current_position=destination_position;
     is_moving=FALSE;
@@ -206,6 +215,11 @@ integer can_pass(integer listpos){
     return llList2Integer(passability, listpos);
 }
 list passability=[];
+
+
+integer character_shown=FALSE;
+integer moving_to_start=FALSE;
+
 default{
     state_entry(){
         scan_linkset();
@@ -213,7 +227,7 @@ default{
     }
     link_message(integer sender, integer num, string str, key id) {
         if(num==LINK_CHANNEL_NUMBER){
-            if(id==SYSTEM_PAINTED){
+            if(id==EV_SYSTEM_PAINTED){
                 passability=llJson2List(str);
                // llOwnerSay(str);
                 destination_position=starting_position;
@@ -230,7 +244,7 @@ state ready{
         paint_character();
         llListen(0, "", NULL_KEY, "");
         llSetTimerEvent(0.3);
-        llSetLinkPrimitiveParamsFast(llList2Integer(char_linkids,0),[PRIM_POS_LOCAL,<0,0,0.1>]);
+        llSetLinkPrimitiveParamsFast(llList2Integer(char_linkids,0),[PRIM_POS_LOCAL,<0,0,0.10>]);
         llSetLinkPrimitiveParamsFast(llList2Integer(char_linkids,1),[PRIM_POS_LOCAL,<0,0,0.10>]);
         list losParametros=[];
         losParametros+=[PRIM_LINK_TARGET, llList2Integer(char_linkids,0), PRIM_POS_LOCAL,ZERO_VECTOR+<cell_size.y/2,cell_size.y/2,0>+cell_id_2_local_pos((integer)starting_position.x-1,(integer)starting_position.y-1)];
@@ -256,46 +270,75 @@ state ready{
     }
     link_message(integer sender, integer num, string str, key id) {
         if(num==LINK_CHANNEL_NUMBER){
-            if(id==SYSTEM_PAINTED){
+            if(id==EV_SYSTEM_PAINTED){
                 //Se ha finalizado de pintar el mapa
                 passability=llJson2List(str);
                // llOwnerSay(str);
                 destination_position=starting_position;
-                paint_character();
-            }else if(id==DO_RESET || id==SYSTEM_READY){
-                //Se ha mandado orden de resetear el mapa, limpiar el personaje
+                moving_to_start=TRUE;
+                //paint character gets called in the timer (after finishig the movement) so the character is hidden until it
+                //reaches the starting position.
+                //paint_character();
+            }else if(id==MT_DO_RESET || id==EV_SYSTEM_READY || id==MT_DO_CLEAR || id==EV_SYSTEM_DONE){
+                //Se ha mandado orden de resetear el mapa o se ha limpiado el mapa, limpiar el personaje
                 clear_character();
             }
         }
     }
     timer(){
-        if(current_position!=destination_position){
-            if(!is_moving){
-                is_moving=TRUE;
-                ensure_in_grid();
-                if(current_position.x>destination_position.x){
-                    current_direction=CHAR_DIRECTION_LEFT;
-                }else if(current_position.x<destination_position.x){
-                    current_direction=CHAR_DIRECTION_RIGHT;
-                }else if(current_position.y>destination_position.y){
-                    current_direction=CHAR_DIRECTION_UP;
-                }else if(current_position.y<destination_position.y){
-                    current_direction=CHAR_DIRECTION_DOWN;
+        if(character_shown){
+            if(current_position!=destination_position){
+                if(!is_moving){
+                    is_moving=TRUE;
+                    ensure_in_grid();
+                    if(current_position.x>destination_position.x){
+                        current_direction=CHAR_DIRECTION_LEFT;
+                    }else if(current_position.x<destination_position.x){
+                        current_direction=CHAR_DIRECTION_RIGHT;
+                    }else if(current_position.y>destination_position.y){
+                        current_direction=CHAR_DIRECTION_UP;
+                    }else if(current_position.y<destination_position.y){
+                        current_direction=CHAR_DIRECTION_DOWN;
+                    }
+                    
+                    move_to_animated(destination_position);  
+                    
                 }
-                 
-                move_to_animated(destination_position);    
-            }
-        }else if(!is_moving){
-            list losParametros=[];
-            
-            losParametros+=get_params_for(char_texture, llList2Integer(char_linkids,0),0,get_texture_tile_number(current_direction,0,FALSE));
-            if((integer)current_position.y==1){
-                losParametros+=[PRIM_LINK_TARGET, llList2Integer(char_linkids,1) ,PRIM_TEXTURE, 0, TEXTURE_TRANSPARENT, <1,1,0>, <0,0,0>, 0];
-            }else{
-                losParametros+=get_params_for(char_texture, llList2Integer(char_linkids,1),0,get_texture_tile_number(current_direction,0,TRUE));
-            }
-            llSetLinkPrimitiveParamsFast(2,losParametros);    
+            }else if(!is_moving){
+                list losParametros=[];
+                
+                losParametros+=get_params_for(char_texture, llList2Integer(char_linkids,0),0,get_texture_tile_number(current_direction,0,FALSE));
+                if((integer)current_position.y==1){
+                    losParametros+=[PRIM_LINK_TARGET, llList2Integer(char_linkids,1) ,PRIM_TEXTURE, 0, TEXTURE_TRANSPARENT, <1,1,0>, <0,0,0>, 0];
+                }else{
+                    losParametros+=get_params_for(char_texture, llList2Integer(char_linkids,1),0,get_texture_tile_number(current_direction,0,TRUE));
+                }
+                llSetLinkPrimitiveParamsFast(2,losParametros);    
+            }  
+        }else{
+            if(current_position!=destination_position){
+                if(!is_moving){
+                    is_moving=TRUE;
+                    ensure_in_grid();
+                    if(current_position.x>destination_position.x){
+                        current_direction=CHAR_DIRECTION_LEFT;
+                    }else if(current_position.x<destination_position.x){
+                        current_direction=CHAR_DIRECTION_RIGHT;
+                    }else if(current_position.y>destination_position.y){
+                        current_direction=CHAR_DIRECTION_UP;
+                    }else if(current_position.y<destination_position.y){
+                        current_direction=CHAR_DIRECTION_DOWN;
+                    }
+                    
+                    move_to(destination_position);  
+                }
+            }else if(moving_to_start) {
+                moving_to_start=FALSE;
+                current_direction=CHAR_DIRECTION_DOWN;
+                paint_character();
+            } 
         }
+        
        // paint_character();
     }
 }

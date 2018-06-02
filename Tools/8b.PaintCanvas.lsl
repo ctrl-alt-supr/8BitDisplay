@@ -1,7 +1,7 @@
+#include "UI.Protocol"
 #include "8b.Protocol"
 #include "8b.Common"
 #include "8b.Faces"
-
 
 //////  VARIABLES  ///////////////////////////////////////////////////////////////////////////
 //Size of the ground grid
@@ -12,7 +12,9 @@ vector alpha_size=<10,10,0>;
 string ground_tiles="base_ground";
 //Name of the alpha tile texture
 string alpha_tiles="base_alpha";
-//Contains the link ids of the prims used for the display
+//Name of the selection tile texture
+string sel_tiles="base_sel";
+
 list map_linkids=[
     -1,-1,-1,-1,
     -1,-1,-1,-1,
@@ -21,9 +23,9 @@ list map_linkids=[
 ];
 //List containing the tiles to paint in the ground layer
 list ground_map=[
-    0,0,0,55,55,0,0,0,
-    10,10,10,55,55,10,10,10,
-    42,42,42,42,42,42,42,42,
+    43,43,43,43,43,43,43,43,
+    43,43,43,43,43,43,43,43,
+    43,43,43,43,43,43,43,43,
     43,43,43,43,43,43,43,43,
     43,43,43,43,43,43,43,43,
     43,43,43,43,43,43,43,43,
@@ -32,44 +34,15 @@ list ground_map=[
 ];
 //List containing the tiles to paint in the alpha layer
 list alpha_map=[
-    99,99,99,99,99,6,7,99,
-    34,35,78,99,99,99,99,99,
-    44,45,88,99,99,99,99,99,
+    99,99,99,99,99,99,99,99,
+    99,99,99,99,99,99,99,99,
+    99,99,99,99,99,99,99,99,
     99,99,99,99,99,99,99,99,
     99,99,99,99,99,99,99,99,
     99,99,99,99,99,99,99,99,
     99,99,99,99,99,99,99,99,
     99,99,99,99,99,99,99,99
 ];
-//List that determines the passability of each tile painted to the ground layer
-list ground_tiles_passability=[
-    1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1
-];
-//List that determines the passability of each tile painted to the alpha layer
-list alpha_tiles_passability=[
-    1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1
-];
-//This list will be filled runtime with the combined pasability of both the ground and alpha layers
-list baked_passability=[];
-
 //////  FUNCTIONS  ///////////////////////////////////////////////////////////////////////////
 //Returns the index in a map_linkids for an specified row and column of the map grid.
 integer get_grid_position(integer row, integer col){
@@ -83,22 +56,24 @@ scan_linkset(){
         string currprimname=llGetLinkName(i); 
         if(string_contains(currprimname,":")){
             list stringparts=llParseString2List(currprimname,[":"],[]);
-            string numfila= llList2String(stringparts,1);
-            string numcolumna= llList2String(stringparts,2);
-            integer posenlista= get_grid_position((integer)numfila,(integer)numcolumna);
-            map_linkids = llListReplaceList(map_linkids, [i], posenlista, posenlista);            
+            if(llList2String(stringparts,0)=="canvas"){
+                string numfila= llList2String(stringparts,1);
+                string numcolumna= llList2String(stringparts,2);
+                integer posenlista= get_grid_position((integer)numfila,(integer)numcolumna);
+                map_linkids = llListReplaceList(map_linkids, [i], posenlista, posenlista);            
+            }ç
         }   
     }
 }
- integer get_pasability_for(integer listpos, integer layer){
-    list la_lista_a_usar=[];
-    if(layer==ENM_LAYER_GROUND){
-        la_lista_a_usar=ground_tiles_passability;
-    }else if(layer==ENM_LAYER_ALPHA){
-        la_lista_a_usar=alpha_tiles_passability;
-    }
-    return llList2Integer(la_lista_a_usar, listpos);
-}
+//  integer get_pasability_for(integer listpos, integer layer){
+//     list la_lista_a_usar=[];
+//     if(layer==ENM_LAYER_GROUND){
+//         la_lista_a_usar=ground_tiles_passability;
+//     }else if(layer==ENM_LAYER_ALPHA){
+//         la_lista_a_usar=alpha_tiles_passability;
+//     }
+//     return llList2Integer(la_lista_a_usar, listpos);
+// }
 //Given a link number, face and tile to paint, returns the list needed to set the appropiate params through llSetLinkPrimitiveParamsFast
 list get_params_for(string tilesetname, integer linkid, integer face, integer tile_number, integer tileset_cols, integer tileset_rows){
     vector textureOffset=ZERO_VECTOR;
@@ -114,38 +89,6 @@ list get_params_for(string tilesetname, integer linkid, integer face, integer ti
 
     return [PRIM_LINK_TARGET, linkid, PRIM_TEXTURE, face, tilesetname, scaleRepeats, textureOffset, 0];
 }
-
-
-//linknum_and_face cache
-// string tilePosJSON="{}";
-// clearCache(){
-//     tilePosJSON="{}";
-// }
-// setCache(integer index, integer layer, list linknum_and_face){
-//     string newVal=tilePosJSON;
-//     string oldLayerContent=llJsonGetValue(newVal,[(string)layer]);
-//     if(oldLayerContent==JSON_INVALID){
-//         oldLayerContent="{}";
-//     }
-//     oldLayerContent=llJsonSetValue(oldLayerContent, [(string)index], llList2Json(JSON_ARRAY, linknum_and_face));
-//     newVal=llJsonSetValue(newVal, [(string)layer], oldLayerContent);
-//     if(newVal!=JSON_INVALID){
-//        tilePosJSON=newVal; 
-//        //llOwnerSay(newVal);
-//     }
-// }
-// list getCache(integer index, integer layer){
-//     string layerContent=llJsonGetValue(tilePosJSON,[(string)layer]);
-//     if(layerContent!=JSON_INVALID){
-//         string val=llJsonGetValue(layerContent,[(string)index]);
-//         if(val!=JSON_INVALID){
-//             return llJson2List(val);
-//         }
-//     }
-//     return [];
-// }
-
-
 //Given an index of a tile in the grid and a layer, returns the linknumber and face the tile should be painted on.
 list get_linknum_and_face(integer tilePos, integer layer){
     //list cached=getCache(tilePos, layer);
@@ -216,10 +159,10 @@ list get_linknum_and_face(integer tilePos, integer layer){
 //Paints the map using the current values
 paint_map(){
     
-    baked_passability=[];
+   // baked_passability=[];
     paint_ground();
     paint_alpha();
-    llMessageLinked(LINK_THIS, LINK_CHANNEL_NUMBER, llList2Json(JSON_ARRAY, baked_passability), EV_SYSTEM_PAINTED);
+   // llMessageLinked(LINK_THIS, LINK_CHANNEL_NUMBER, llList2Json(JSON_ARRAY, baked_passability), EV_SYSTEM_PAINTED);
 }
 //Paints only the ground and bakes passability
 paint_ground(){
@@ -228,7 +171,7 @@ paint_ground(){
     list toSet2=[];
     for(;i<llGetListLength(ground_map);i++){
         integer ctile=llList2Integer( ground_map,i); 
-        baked_passability+=get_pasability_for(ctile,ENM_LAYER_GROUND);
+        //baked_passability+=get_pasability_for(ctile,ENM_LAYER_GROUND);
         list link_and_face=get_linknum_and_face(i,ENM_LAYER_GROUND);
         if(i%2==0){
             toSet+=get_params_for(ground_tiles, llList2Integer(link_and_face,0),llList2Integer(link_and_face,1),ctile, (integer)(ground_size.x), (integer)(ground_size.y));
@@ -247,7 +190,7 @@ paint_alpha(){
     list toSet2=[];
     for(;i<llGetListLength(alpha_map);i++){
         integer ctile=llList2Integer( alpha_map,i); 
-        baked_passability=llListReplaceList(baked_passability, [llList2Integer(baked_passability, i) && get_pasability_for(ctile,ENM_LAYER_ALPHA)], i, i);
+        //baked_passability=llListReplaceList(baked_passability, [llList2Integer(baked_passability, i) && get_pasability_for(ctile,ENM_LAYER_ALPHA)], i, i);
         list link_and_face=get_linknum_and_face(i,ENM_LAYER_ALPHA);
         if(i%2==0){
             toSet+=get_params_for(alpha_tiles, llList2Integer(link_and_face,0),llList2Integer(link_and_face,1),ctile, (integer)(alpha_size.x), (integer)(alpha_size.y));
@@ -304,10 +247,9 @@ clear_screen(vector elColor){
     llMessageLinked(LINK_THIS, LINK_CHANNEL_NUMBER, "", EV_SYSTEM_DONE);
 }
 
-
 default{
     state_entry(){
-        clearCache();
+        //clearCache();
         scan_linkset();
         llMessageLinked(LINK_THIS, LINK_CHANNEL_NUMBER, "", EV_SYSTEM_READY);
     }
@@ -317,15 +259,7 @@ default{
                 llResetScript();
             }if(id==MT_DO_PAINT){
                 if(str!=""){
-                    //Nya!
-                    ground_tiles=llJsonGetValue(str,["ground_tileset"]);
-                    alpha_tiles=llJsonGetValue(str,["alpha_tileset"]);
-                    ground_tiles_passability=llJson2List(llJsonGetValue(str,["ground_passability"]));
-                    alpha_tiles_passability=llJson2List(llJsonGetValue(str,["alpha_passability"]));
-                    ground_map=llJson2List(llJsonGetValue(str,["ground"]));
-                    alpha_map=llJson2List(llJsonGetValue(str,["alpha"]));
-                    ground_size=(vector)llJsonGetValue(str,["ground_size"]);
-                    alpha_size=(vector)llJsonGetValue(str,["alpha_size"]);
+                   
                     paint_map();
                 }
             }if(id==MT_DO_CLEAR){
